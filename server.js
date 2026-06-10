@@ -3,7 +3,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 
-const { upload } = require("./config/cloudinary");
+const { upload, cloudinary } = require("./config/cloudinary");
 const Image = require("./models/Image");
 
 const app = express();
@@ -86,6 +86,38 @@ app.get("/api/images", async (req, res) => {
   }
 });
 
+// ── DELETE /api/images/:id ───────────────────────────────────────────────────
+// Deletes an image by ID (both from MongoDB and Cloudinary)
+app.delete("/api/images/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid image id." });
+    }
+
+    const image = await Image.findById(id);
+
+    if (!image) {
+      return res.status(404).json({ error: "Image not found." });
+    }
+
+    if (image.cloudinaryId) {
+      await cloudinary.uploader.destroy(image.cloudinaryId);
+    }
+
+    await Image.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      message: "Image deleted successfully.",
+      id,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.method} ${req.path} not found.` });
@@ -102,4 +134,5 @@ app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
   console.log(`   POST  http://localhost:${PORT}/api/upload`);
   console.log(`   GET   http://localhost:${PORT}/api/images`);
+  console.log(`   DELETE http://localhost:${PORT}/api/images/:id`);
 });
